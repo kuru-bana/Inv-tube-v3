@@ -286,7 +286,7 @@ async function doSearch(resetPage = false) {
       }
     }
 
-    saveCache(filters, regularResults);
+    if (regularResults.length > 0) saveCache(filters, regularResults);
     renderRegularResults(regularResults, q);
 
     if (resetPage || isNewQuery) {
