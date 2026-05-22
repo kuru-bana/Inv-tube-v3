@@ -83,9 +83,35 @@ def _has_valid_stream(data) -> bool:
     return any(isinstance(s, dict) and s.get("url") for s in streams)
 
 
-def _extract_innertube_videos(data: dict) -> list:
-    """Parse innertube channel tab response into [{videoId, title}] list."""
+_innertube_cont_cache: dict = {}
+_INNERTUBE_CONT_TTL = 600
+
+
+def _innertube_cont_set(channel_id: str, tab: str, inv_cont: str, innertube_key: str):
+    key = (channel_id, tab, inv_cont)
+    _innertube_cont_cache[key] = {"key": innertube_key, "time": time.time()}
+    now = time.time()
+    stale = [k for k, v in _innertube_cont_cache.items() if now - v["time"] > _INNERTUBE_CONT_TTL]
+    for k in stale:
+        del _innertube_cont_cache[k]
+
+
+def _innertube_cont_get(channel_id: str, tab: str, inv_cont: str) -> str | None:
+    key = (channel_id, tab, inv_cont)
+    entry = _innertube_cont_cache.get(key)
+    if not entry:
+        return None
+    if time.time() - entry["time"] > _INNERTUBE_CONT_TTL:
+        del _innertube_cont_cache[key]
+        return None
+    return entry["key"]
+
+
+def _extract_innertube_videos(data: dict) -> tuple:
+    """Parse innertube channel tab response. Returns (videos, cont_key)."""
     result = []
+    cont_key = data.get("_contKey")
+
     contents = data.get("current_tab", {}).get("content", {}).get("contents", [])
     for item in contents:
         if not isinstance(item, dict):
@@ -99,11 +125,23 @@ def _extract_innertube_videos(data: dict) -> list:
         title_obj = lv.get("metadata", {}).get("title", {})
         title = title_obj.get("text", "") if isinstance(title_obj, dict) else str(title_obj)
         result.append({"videoId": video_id, "title": title})
-    return result
+
+    if not result:
+        for item in (data.get("videos") or data.get("items") or []):
+            if not isinstance(item, dict):
+                continue
+            video_id = item.get("id")
+            if not video_id:
+                continue
+            title_obj = item.get("title", {})
+            title = title_obj.get("text", "") if isinstance(title_obj, dict) else str(title_obj)
+            result.append({"videoId": video_id, "title": title})
+
+    return result, cont_key
 
 
-async def fetch_innertube_videos(channel_id: str, tab: str) -> list:
-    """Fetch videos from innertube API for the given channel tab."""
+async def fetch_innertube_videos(channel_id: str, tab: str) -> tuple:
+    """Fetch first page of videos from innertube API. Returns (videos, cont_key)."""
     tab_map = {"videos": "videos", "shorts": "shorts", "streams": "live", "latest": "videos"}
     innertube_tab = tab_map.get(tab, "videos")
     try:
@@ -115,7 +153,22 @@ async def fetch_innertube_videos(channel_id: str, tab: str) -> list:
         resp.raise_for_status()
         return _extract_innertube_videos(resp.json())
     except Exception:
-        return []
+        return [], None
+
+
+async def fetch_innertube_continuation(cont_key: str) -> tuple:
+    """Fetch next page of innertube channel videos using continuation key. Returns (videos, cont_key)."""
+    try:
+        client = await get_client()
+        resp = await client.get(
+            f"{INNERTUBE_BASE}/channel/continue",
+            params={"key": cont_key},
+            timeout=httpx.Timeout(30.0),
+        )
+        resp.raise_for_status()
+        return _extract_innertube_videos(resp.json())
+    except Exception:
+        return [], None
 
 
 def _innertube_to_invidious(innertube_items: list, channel_id: str = "") -> list:
@@ -313,22 +366,35 @@ async def proxy_main(path: str, request: Request):
     tab = ch_match.group(2) if ch_match else None
 
     if ch_match:
-        # Run Invidious and innertube concurrently so innertube cold-start doesn't block
+        inv_cont_in = request.query_params.get("continuation")
+        innertube_cont_key = _innertube_cont_get(channel_id, tab, inv_cont_in) if inv_cont_in else None
+
         invidious_task = asyncio.create_task(
             proxy_parallel(category, invidious_path, prefer_valid_videos=True)
         )
-        innertube_task = asyncio.create_task(fetch_innertube_videos(channel_id, tab))
-        results = await asyncio.gather(invidious_task, innertube_task, return_exceptions=True)
-        inv_result, innertube_items = results[0], results[1]
+        if innertube_cont_key:
+            innertube_task = asyncio.create_task(fetch_innertube_continuation(innertube_cont_key))
+        else:
+            innertube_task = asyncio.create_task(fetch_innertube_videos(channel_id, tab))
 
-        if isinstance(innertube_items, Exception):
-            innertube_items = []
+        results = await asyncio.gather(invidious_task, innertube_task, return_exceptions=True)
+        inv_result, innertube_result = results[0], results[1]
+
+        if isinstance(innertube_result, Exception):
+            innertube_result = ([], None)
+        innertube_items, new_innertube_cont_key = innertube_result if isinstance(innertube_result, tuple) else (innertube_result, None)
 
         if isinstance(inv_result, Exception):
             if innertube_items:
                 fallback = _innertube_to_invidious(innertube_items, channel_id)
                 return JSONResponse(fallback if tab == "latest" else {"videos": fallback, "continuation": None})
             return JSONResponse({"error": str(inv_result)}, status_code=502)
+
+        if new_innertube_cont_key:
+            inv_data = inv_result["data"]
+            inv_cont_out = inv_data.get("continuation") if isinstance(inv_data, dict) else None
+            if inv_cont_out:
+                _innertube_cont_set(channel_id, tab, inv_cont_out, new_innertube_cont_key)
 
         data = _apply_enrichment(inv_result["data"], innertube_items, channel_id)
         return JSONResponse(data)
