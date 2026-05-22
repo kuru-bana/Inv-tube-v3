@@ -319,8 +319,12 @@ async function fetchMain(apiPath) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
-  return await res.json();
+  const data = await res.json();
+  if (data && typeof data.error === 'string') throw new Error(data.error);
+  fetchMain.lastInstance = res.headers.get('X-Instance-Used') || null;
+  return data;
 }
+fetchMain.lastInstance = null;
 
 function createCommentItem(c) {
   const div = document.createElement('div');
