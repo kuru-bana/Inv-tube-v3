@@ -320,12 +320,22 @@ async function withRetry(fn, maxRetries = Infinity, baseDelay = 1500, maxDelay =
 
 async function fetchMain(apiPath) {
   const url = '/proxy/main' + apiPath;
-  const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return await res.json();
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 1 && (e.name === 'TimeoutError' || e.name === 'TypeError')) continue;
+      throw e;
+    }
   }
-  return await res.json();
+  throw lastErr;
 }
 
 function createCommentItem(c) {
@@ -374,14 +384,24 @@ function createCommentItem(c) {
 
 async function fetchStream(apiPath) {
   const url = '/proxy/stream' + apiPath;
-  const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const instanceUrl = res.headers.get('X-Instance-Used') || null;
+      return { data, instanceUrl };
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 1 && (e.name === 'TimeoutError' || e.name === 'TypeError')) continue;
+      throw e;
+    }
   }
-  const data = await res.json();
-  const instanceUrl = res.headers.get('X-Instance-Used') || null;
-  return { data, instanceUrl };
+  throw lastErr;
 }
 
 function buildSearchUrl(params) {
