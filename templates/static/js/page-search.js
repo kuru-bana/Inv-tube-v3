@@ -112,6 +112,23 @@ async function startShortsAutoFetch(q, region, gen) {
   const q1 = q + ' ショート';
   const q2 = q + ' #shorts';
 
+  function _addShorts(items) {
+    if (gen !== shortsAutoGen) return;
+    const newShorts = items.filter(item =>
+      item.videoId && isShortVideo(item) && !shortsSeenIds.has(item.videoId)
+    );
+    newShorts.forEach(item => {
+      shortsSeenIds.add(item.videoId);
+      allShortsFound.push(item);
+    });
+    if (newShorts.length > 0 && shortsShelfEl) {
+      appendShortsToShelf(shortsShelfEl, newShorts, allShortsFound, q);
+      const section = document.getElementById('shortsSection');
+      if (section) section.hidden = false;
+    }
+    return newShorts.length;
+  }
+
   async function fetchOnePage(searchQ, page) {
     if (gen !== shortsAutoGen) return 0;
     try {
@@ -120,24 +137,57 @@ async function startShortsAutoFetch(q, region, gen) {
       const raw = await fetchMain(url);
       if (gen !== shortsAutoGen) return 0;
       const items = Array.isArray(raw) ? raw : (raw.results || []);
-      const newShorts = items.filter(item =>
-        item.videoId && isShortVideo(item) && !shortsSeenIds.has(item.videoId)
-      );
-      newShorts.forEach(item => {
-        shortsSeenIds.add(item.videoId);
-        allShortsFound.push(item);
-      });
-      if (newShorts.length > 0 && shortsShelfEl) {
-        appendShortsToShelf(shortsShelfEl, newShorts, allShortsFound, q);
-        const section = document.getElementById('shortsSection');
-        if (section) section.hidden = false;
-      }
+      _addShorts(items);
       return items.length;
     } catch (e) {
       console.warn('Shorts fetch error (' + searchQ + ' p' + page + '):', e);
       return 0;
     }
   }
+
+  function _makeSignal(ms) {
+    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+      return AbortSignal.timeout(ms);
+    }
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), ms);
+    return ctrl.signal;
+  }
+
+  const innertubePromise = (async () => {
+    const maxContPages = 4;
+    try {
+      const res = await fetch(
+        `/api/innertube-shorts-search?q=${encodeURIComponent(q)}`,
+        { signal: _makeSignal(15000) }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.error) return;
+      if (Array.isArray(data.items)) _addShorts(data.items);
+      let contKey = data.contKey || null;
+      for (let i = 0; i < maxContPages && contKey && gen === shortsAutoGen; i++) {
+        await new Promise(r => setTimeout(r, 300));
+        if (gen !== shortsAutoGen) return;
+        try {
+          const cr = await fetch(
+            `/api/innertube-shorts-search-cont?contKey=${encodeURIComponent(contKey)}`,
+            { signal: _makeSignal(15000) }
+          );
+          if (!cr.ok) break;
+          const cd = await cr.json();
+          if (cd.error) break;
+          if (Array.isArray(cd.items)) _addShorts(cd.items);
+          contKey = cd.contKey || null;
+        } catch (e) {
+          console.warn('InnerTube shorts cont error:', e);
+          break;
+        }
+      }
+    } catch (e) {
+      console.warn('InnerTube shorts search error:', e);
+    }
+  })();
 
   let q2Promise = null;
 
@@ -160,7 +210,7 @@ async function startShortsAutoFetch(q, region, gen) {
     await new Promise(r => setTimeout(r, 350));
   }
 
-  if (q2Promise) await q2Promise;
+  await Promise.allSettled([q2Promise, innertubePromise].filter(Boolean));
 
   if (gen === shortsAutoGen && allShortsFound.length === 0 && shortsShelfEl) {
     const scroll = shortsShelfEl.querySelector('.shorts-shelf-scroll');
