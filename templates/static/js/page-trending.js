@@ -1,5 +1,5 @@
 ;(() => {
-  if (!document.body.classList.contains('page-home')) return;
+  if (!document.body.classList.contains('page-trending')) return;
 let currentRegion = 'JP';
 let currentCategory = '';
 
