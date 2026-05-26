@@ -24,6 +24,8 @@
   let searchContinuation = null;
   let searchShortPage1 = 1;
   let searchShortPage2 = 0;
+  let searchExhausted = false;
+  let searchEmptyStreak = 0;
 
   // ===== EDU PARAMS =====
   function getParamIdx() {
@@ -118,7 +120,9 @@
     const prevBtn = document.getElementById('sfPrevBtn');
     const nextBtn = document.getElementById('sfNextBtn');
     if (prevBtn) prevBtn.disabled = queueIdx <= 0;
-    const hasMoreFetchable = (channelMode && channelContinuation) || (searchMode && searchContinuation);
+    const hasMoreFetchable = (channelMode && channelContinuation) ||
+                             (searchMode && searchContinuation) ||
+                             (searchMode && searchQueryStr && !searchExhausted);
     if (nextBtn) nextBtn.disabled = queueIdx >= queue.length - 1 && !hasMoreFetchable;
   }
 
@@ -294,7 +298,15 @@
           newItems.push({ videoId: v.videoId, meta: v });
         }
       });
-      if (newItems.length) { queue.push(...newItems); updateNavBtns(); }
+      if (newItems.length) {
+        searchEmptyStreak = 0;
+        queue.push(...newItems);
+        updateNavBtns();
+      } else {
+        searchEmptyStreak++;
+        if (searchEmptyStreak >= 2) searchExhausted = true;
+        updateNavBtns();
+      }
     } catch (_) {}
     isFetchingMore = false;
   }
@@ -502,6 +514,8 @@
         if (!ok) {
           searchMode = false;
           if (metaResult) prefetchMoreRecs(startId, metaResult);
+        } else if (queueIdx >= queue.length - 3) {
+          prefetchMoreSearch();
         }
       } else if (metaResult) {
         prefetchMoreRecs(startId, metaResult);
