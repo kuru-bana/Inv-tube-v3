@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 INVIDIOUS_BASE = "https://raw.githubusercontent.com/kuru-bana/yt-data/main/invidious"
 INNERTUBE_BASE = "https://choco-youtube-js.onrender.com"
@@ -679,7 +680,7 @@ async def whats():
 
 @app.get("/version")
 async def version():
-    return {"ver": "1.22"}
+    return {"ver": "1.23"}
 
 
 LINKLIST_URL = "https://raw.githubusercontent.com/kuru-bana/Link-list/refs/heads/main/choco-tube-plus.json"
@@ -932,4 +933,5 @@ class StaticCacheMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(StaticCacheMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.mount("/static", StaticFiles(directory="templates/static"), name="static")
