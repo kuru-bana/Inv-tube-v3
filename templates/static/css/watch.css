@@ -1,3 +1,15 @@
+/* ===== WATCH PAGE THEME VARIABLES ===== */
+/* Override in pro/watch.css for pro theme */
+body.page-watch {
+  --w-a1:   124, 58, 237;   /* primary accent RGB */
+  --w-a2:   139, 92, 246;   /* secondary accent RGB */
+  --w-adk:  var(--w-adk);        /* accent dark – gradient end */
+  --w-dbg:  5, 9, 20;       /* dark backdrop RGB */
+  --w-ok:   #4ade80;        /* status ok */
+  --w-fail: #f87171;        /* status fail */
+  --w-yt:   var(--w-yt);        /* YouTube brand red */
+}
+
 /* ===== WATCH PAGE LAYOUT ===== */
 body.page-watch .watch-main {
   max-width: 1480px;
@@ -31,7 +43,7 @@ body.page-watch .player-wrap {
   background: #000;
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(124, 58, 237, 0.25), 0 8px 32px rgba(0,0,0,0.7);
+  box-shadow: 0 0 40px rgba(var(--w-a1), 0.25), 0 8px 32px rgba(0,0,0,0.7);
 }
 
 body.page-watch .player-skeleton {
@@ -59,7 +71,7 @@ body.page-watch .player-error {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  background: rgba(5, 9, 20, 0.95);
+  background: rgba(var(--w-dbg), 0.95);
   color: var(--muted);
   font-size: 0.9rem;
   text-align: center;
@@ -447,7 +459,7 @@ body.page-watch .pc-mode-btn:hover {
 }
 
 body.page-watch .pc-mode-btn.active {
-  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  background: linear-gradient(135deg, var(--accent), var(--w-adk));
   color: #fff;
   border-color: transparent;
   box-shadow: 0 0 8px var(--glow-purple);
@@ -575,7 +587,7 @@ body.page-watch .pc-tool-key {
 }
 body.page-watch .pc-tool-item:hover .pc-tool-key {
   border-color: rgba(255,255,255,0.35);
-  background: rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
 body.page-watch .pc-tool-divider {
@@ -663,8 +675,8 @@ body.page-watch .pc-alt-status {
   white-space: nowrap;
 }
 
-body.page-watch .pc-alt-status.stream-alt-ok  { color: #4ade80; font-style: normal; }
-body.page-watch .pc-alt-status.stream-alt-fail { color: #f87171; font-style: normal; }
+body.page-watch .pc-alt-status.stream-alt-ok  { color: var(--w-ok); font-style: normal; }
+body.page-watch .pc-alt-status.stream-alt-fail { color: var(--w-fail); font-style: normal; }
 
 /* Quality buttons (inside controls panel) */
 body.page-watch .quality-btns {
@@ -697,7 +709,7 @@ body.page-watch .quality-btn:hover {
 }
 
 body.page-watch .quality-btn.active {
-  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  background: linear-gradient(135deg, var(--accent), var(--w-adk));
   color: #fff;
   border-color: transparent;
   box-shadow: 0 0 8px var(--glow-purple);
@@ -757,8 +769,8 @@ body.page-watch .hq-status {
   font-style: italic;
 }
 
-body.page-watch .hq-status.hq-ok  { color: #4ade80; font-style: normal; }
-body.page-watch .hq-status.hq-fail { color: #f87171; font-style: normal; }
+body.page-watch .hq-status.hq-ok  { color: var(--w-ok); font-style: normal; }
+body.page-watch .hq-status.hq-fail { color: var(--w-fail); font-style: normal; }
 
 
 
@@ -889,12 +901,12 @@ body.page-watch .yt-link-btn {
 
 body.page-watch .yt-link-btn:hover {
   color: #fff;
-  border-color: #ff4444;
+  border-color: var(--w-yt);
   background: rgba(255, 68, 68, 0.12);
   box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
 }
 
-body.page-watch .yt-link-btn svg { color: #ff4444; }
+body.page-watch .yt-link-btn svg { color: var(--w-yt); }
 
 /* ===== DESCRIPTION ===== */
 body.page-watch .description-wrap {
@@ -1006,8 +1018,8 @@ body.page-watch .sidebar-chat-toggle-btn {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--accent-bright);
-  background: rgba(124, 58, 237, 0.12);
-  border: 1px solid rgba(124, 58, 237, 0.35);
+  background: rgba(var(--w-a1), 0.12);
+  border: 1px solid rgba(var(--w-a1), 0.35);
   border-radius: 20px;
   padding: 0.28rem 0.75rem;
   cursor: pointer;
@@ -1017,13 +1029,13 @@ body.page-watch .sidebar-chat-toggle-btn {
 }
 
 body.page-watch .sidebar-chat-toggle-btn:hover {
-  background: rgba(124, 58, 237, 0.25);
+  background: rgba(var(--w-a1), 0.25);
   border-color: var(--accent);
   color: #fff;
 }
 
 body.page-watch .sidebar-chat-toggle-btn.is-chat-active {
-  background: rgba(124, 58, 237, 0.3);
+  background: rgba(var(--w-a1), 0.3);
   border-color: var(--accent);
   color: #fff;
 }
@@ -1057,12 +1069,12 @@ body.page-watch .sidebar-chat-tab {
 
 body.page-watch .sidebar-chat-tab:hover {
   color: var(--text);
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(var(--w-a1), 0.1);
 }
 
 body.page-watch .sidebar-chat-tab.active {
   color: var(--accent-bright);
-  background: rgba(124, 58, 237, 0.18);
+  background: rgba(var(--w-a1), 0.18);
   border-bottom: 2px solid var(--accent);
 }
 
@@ -1520,7 +1532,7 @@ body.page-watch .lang-btn:hover {
 }
 
 body.page-watch .lang-btn.active {
-  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  background: linear-gradient(135deg, var(--accent), var(--w-adk));
   color: #fff;
   border-color: transparent;
   box-shadow: 0 0 10px var(--glow-purple);
@@ -1542,9 +1554,9 @@ body.page-watch .lang-badge-auto {
 }
 
 body.page-watch .lang-btn.active .lang-badge-auto {
-  background: rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.18);
   color: #fef08a;
-  border-color: rgba(255,255,255,0.25);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 body.page-watch .lang-badge-yta {
@@ -1554,9 +1566,9 @@ body.page-watch .lang-badge-yta {
 }
 
 body.page-watch .lang-btn.active .lang-badge-yta {
-  background: rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.18);
   color: #fca5a5;
-  border-color: rgba(255,255,255,0.25);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 body.page-watch .transcript-content {
@@ -1607,10 +1619,10 @@ body.page-watch .transcript-line {
   cursor: pointer;
 }
 
-body.page-watch .transcript-line:hover { background: rgba(124, 58, 237, 0.12); }
+body.page-watch .transcript-line:hover { background: rgba(var(--w-a1), 0.12); }
 
 body.page-watch .transcript-line.active {
-  background: rgba(124, 58, 237, 0.2);
+  background: rgba(var(--w-a1), 0.2);
 }
 
 body.page-watch .transcript-ts {
@@ -1691,7 +1703,7 @@ body.page-watch .sort-btn:hover {
 }
 
 body.page-watch .sort-btn.active {
-  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  background: linear-gradient(135deg, var(--accent), var(--w-adk));
   color: #fff;
   border-color: transparent;
   box-shadow: 0 0 10px var(--glow-purple);
@@ -1708,7 +1720,7 @@ body.page-watch .comment-item {
   display: flex;
   gap: 0.85rem;
   padding: 0.9rem 0;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  border-bottom: 1px solid rgba(var(--w-a2), 0.1);
 }
 
 body.page-watch .comment-item:last-child { border-bottom: none; }
@@ -1761,8 +1773,8 @@ body.page-watch .comment-date {
 body.page-watch .comment-pinned {
   font-size: 0.72rem;
   color: var(--accent-bright);
-  background: rgba(124, 58, 237, 0.15);
-  border: 1px solid rgba(124, 58, 237, 0.3);
+  background: rgba(var(--w-a1), 0.15);
+  border: 1px solid rgba(var(--w-a1), 0.3);
   padding: 1px 7px;
   border-radius: 999px;
 }
@@ -1803,7 +1815,7 @@ body.page-watch .comment-skeleton {
   display: flex;
   gap: 0.85rem;
   padding: 0.9rem 0;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  border-bottom: 1px solid rgba(var(--w-a2), 0.1);
 }
 
 body.page-watch .cs-avatar {
@@ -1852,7 +1864,7 @@ body.page-watch .load-more-btn {
 body.page-watch .load-more-btn:hover {
   border-color: var(--accent-bright);
   box-shadow: 0 0 14px var(--glow-purple);
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(var(--w-a1), 0.1);
 }
 
 body.page-watch .load-more-btn:disabled {
@@ -2012,11 +2024,11 @@ body.page-watch .watch-pl-btn:hover {
 body.page-watch .watch-pl-btn--saved {
   color: var(--accent-bright);
   border-color: var(--accent-bright);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(var(--w-a2), 0.12);
 }
 
 body.page-watch .watch-pl-btn--saved:hover {
-  background: rgba(139, 92, 246, 0.22);
+  background: rgba(var(--w-a2), 0.22);
 }
 
 body.page-watch .watch-pl-popup {
@@ -2138,7 +2150,7 @@ body.page-watch .watch-dl-btn {
 body.page-watch .watch-dl-btn:hover {
   color: var(--accent-bright);
   border-color: var(--accent-bright);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(var(--w-a2), 0.12);
 }
 
 /* ===== FAVORITES BUTTON ===== */
@@ -2242,7 +2254,7 @@ body.page-watch .dl-modal-page-link {
 body.page-watch .dl-modal-page-link:hover {
   color: var(--accent-bright);
   border-color: var(--accent-bright);
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(var(--w-a2), 0.1);
 }
 
 body.page-watch .dl-modal-close {
@@ -2302,7 +2314,7 @@ body.page-watch .dl-item {
   background: var(--surface2);
   transition: background 0.14s;
 }
-body.page-watch .dl-item:hover { background: rgba(139, 92, 246, 0.08); }
+body.page-watch .dl-item:hover { background: rgba(var(--w-a2), 0.08); }
 
 body.page-watch .dl-item-info {
   display: flex;
@@ -2328,7 +2340,7 @@ body.page-watch .dl-btn {
   gap: 0.4rem;
   padding: 0.38rem 0.85rem;
   border-radius: 8px;
-  background: rgba(139, 92, 246, 0.15);
+  background: rgba(var(--w-a2), 0.15);
   border: 1px solid var(--accent-bright);
   color: var(--accent-bright);
   font-size: 0.8rem;
