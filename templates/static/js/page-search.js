@@ -113,7 +113,7 @@ async function startShortsAutoFetch(q, region, gen) {
   const q2 = q + ' #shorts';
 
   function _addShorts(items) {
-    if (gen !== shortsAutoGen) return;
+    if (gen !== shortsAutoGen) return 0;
     const newShorts = items.filter(item =>
       item.videoId && isShortVideo(item) && !shortsSeenIds.has(item.videoId)
     );
@@ -137,8 +137,7 @@ async function startShortsAutoFetch(q, region, gen) {
       const raw = await fetchMain(url);
       if (gen !== shortsAutoGen) return 0;
       const items = Array.isArray(raw) ? raw : (raw.results || []);
-      _addShorts(items);
-      return items.length;
+      return _addShorts(items);
     } catch (e) {
       console.warn('Shorts fetch error (' + searchQ + ' p' + page + '):', e);
       return 0;
@@ -154,21 +153,79 @@ async function startShortsAutoFetch(q, region, gen) {
     return ctrl.signal;
   }
 
-  const innertubePromise = (async () => {
+  // ---- Source runners (each returns count of new shorts added) ----
+
+  async function runXeroxyt() {
+    let added = 0;
+    await new Promise((resolve) => {
+      let es;
+      try {
+        es = new EventSource(`/api/xeroxyt-shorts-search-stream?q=${encodeURIComponent(q)}`);
+      } catch (e) {
+        console.warn('[Xeroxyt] EventSource init error:', e);
+        resolve(); return;
+      }
+      const cleanup = () => { try { es.close(); } catch (_) {} resolve(); };
+      es.onmessage = (event) => {
+        if (gen !== shortsAutoGen) { cleanup(); return; }
+        try {
+          const data = JSON.parse(event.data);
+          if (data.done) { cleanup(); return; }
+          if (Array.isArray(data.items) && data.items.length > 0) {
+            added += _addShorts(data.items);
+          }
+        } catch (_) {}
+      };
+      es.onerror = () => cleanup();
+      setTimeout(cleanup, 25000);
+    });
+    return added;
+  }
+
+  async function runCse() {
+    const before = allShortsFound.length;
+    await startCseShortsSearch(q, gen);
+    return allShortsFound.length - before;
+  }
+
+  async function runInvidious() {
+    let total = 0;
+    const q2p = (async () => {
+      for (let p = 1; p <= maxPages; p++) {
+        if (gen !== shortsAutoGen) return;
+        const c = await fetchOnePage(q2, p);
+        total += c;
+        if (c < 5) break;
+        await new Promise(r => setTimeout(r, 400));
+      }
+    })();
+    for (let page = 1; page <= maxPages; page++) {
+      if (gen !== shortsAutoGen) break;
+      const c = await fetchOnePage(q1, page);
+      total += c;
+      if (c < 5) break;
+      await new Promise(r => setTimeout(r, 350));
+    }
+    await q2p;
+    return total;
+  }
+
+  async function runInnertube() {
+    let added = 0;
     const maxContPages = 4;
     try {
       const res = await fetch(
         `/api/innertube-shorts-search?q=${encodeURIComponent(q)}`,
         { signal: _makeSignal(15000) }
       );
-      if (!res.ok) return;
+      if (!res.ok) return 0;
       const data = await res.json();
-      if (data.error) return;
-      if (Array.isArray(data.items)) _addShorts(data.items);
+      if (data.error) return 0;
+      if (Array.isArray(data.items)) added += _addShorts(data.items);
       let contKey = data.contKey || null;
       for (let i = 0; i < maxContPages && contKey && gen === shortsAutoGen; i++) {
         await new Promise(r => setTimeout(r, 300));
-        if (gen !== shortsAutoGen) return;
+        if (gen !== shortsAutoGen) break;
         try {
           const cr = await fetch(
             `/api/innertube-shorts-search-cont?contKey=${encodeURIComponent(contKey)}`,
@@ -177,42 +234,46 @@ async function startShortsAutoFetch(q, region, gen) {
           if (!cr.ok) break;
           const cd = await cr.json();
           if (cd.error) break;
-          if (Array.isArray(cd.items)) _addShorts(cd.items);
+          if (Array.isArray(cd.items)) added += _addShorts(cd.items);
           contKey = cd.contKey || null;
         } catch (e) {
-          console.warn('InnerTube shorts cont error:', e);
+          console.warn('[InnerTube] shorts cont error:', e);
           break;
         }
       }
     } catch (e) {
-      console.warn('InnerTube shorts search error:', e);
+      console.warn('[InnerTube] shorts search error:', e);
     }
-  })();
-
-  let q2Promise = null;
-
-  for (let page = 1; page <= maxPages; page++) {
-    if (gen !== shortsAutoGen) return;
-
-    if (page === 3 && !q2Promise) {
-      q2Promise = (async () => {
-        for (let p = 1; p <= maxPages; p++) {
-          if (gen !== shortsAutoGen) return;
-          const count = await fetchOnePage(q2, p);
-          if (count < 5) break;
-          await new Promise(r => setTimeout(r, 400));
-        }
-      })();
-    }
-
-    const count = await fetchOnePage(q1, page);
-    if (count < 5) break;
-    await new Promise(r => setTimeout(r, 350));
+    return added;
   }
 
-  const csePromise = startCseShortsSearch(q, gen);
+  const runners = { xeroxyt: runXeroxyt, cse: runCse, invidious: runInvidious, innertube: runInnertube };
 
-  await Promise.allSettled([q2Promise, innertubePromise, csePromise].filter(Boolean));
+  // ---- Read source order + enabled from settings ----
+  const DEFAULT_ORDER   = ['xeroxyt', 'cse', 'invidious', 'innertube'];
+  const DEFAULT_ENABLED = { xeroxyt: true, cse: true, invidious: true, innertube: true };
+  let sourceOrder, sourceEnabled;
+  try {
+    const _s = (typeof getSettings === 'function') ? getSettings() : {};
+    sourceOrder   = Array.isArray(_s.shortsSourceOrder)   ? _s.shortsSourceOrder   : DEFAULT_ORDER;
+    sourceEnabled = (typeof _s.shortsSourceEnabled === 'object' && _s.shortsSourceEnabled)
+                    ? { ...DEFAULT_ENABLED, ..._s.shortsSourceEnabled }
+                    : DEFAULT_ENABLED;
+  } catch (_) {
+    sourceOrder = DEFAULT_ORDER;
+    sourceEnabled = DEFAULT_ENABLED;
+  }
+
+  // ---- Run sources in priority order with fallback threshold ----
+  const FALLBACK_THRESHOLD = 5;
+  for (const srcId of sourceOrder) {
+    if (gen !== shortsAutoGen) break;
+    if (!sourceEnabled[srcId] || !runners[srcId]) continue;
+    console.log(`[Shorts] trying source: ${srcId}`);
+    const added = await runners[srcId]();
+    console.log(`[Shorts] ${srcId} → ${added} new shorts (total: ${allShortsFound.length})`);
+    if (allShortsFound.length >= FALLBACK_THRESHOLD) break;
+  }
 
   if (gen === shortsAutoGen && allShortsFound.length === 0 && shortsShelfEl) {
     const scroll = shortsShelfEl.querySelector('.shorts-shelf-scroll');
