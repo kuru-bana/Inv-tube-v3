@@ -152,6 +152,8 @@ function initSettings() {
   searchIncludeShorts.addEventListener('change', persistSearch);
   searchSuggestions.addEventListener('change', persistSearch);
 
+  initShortsSourceOrder(showToast);
+
   resetBtn.addEventListener('click', () => {
     if (!confirm('設定をすべてリセットしますか？')) return;
     localStorage.removeItem('chocotube_settings');
@@ -172,6 +174,7 @@ function initSettings() {
     searchIncludeShorts.checked = def.searchIncludeShorts !== false;
     searchSuggestions.checked   = def.searchSuggestions  !== false;
     updateVolSliderFill();
+    initShortsSourceOrder(showToast);
     showToast();
   });
 
@@ -199,4 +202,94 @@ function initSettings() {
     showToast();
   });
 }
+function initShortsSourceOrder(showToastFn) {
+  const SOURCES = {
+    xeroxyt:   'Xeroxyt API',
+    cse:       'Google 検索',
+    invidious: 'Invidious',
+    innertube: 'InnerTube',
+  };
+  const DEFAULT_ORDER   = ['xeroxyt', 'cse', 'invidious', 'innertube'];
+  const DEFAULT_ENABLED = { xeroxyt: true, cse: true, invidious: true, innertube: true };
+
+  const listEl = document.getElementById('shortsSourceList');
+  if (!listEl) return;
+
+  const s = getSettings();
+  let order   = (s.shortsSourceOrder   || DEFAULT_ORDER).filter(id => SOURCES[id]);
+  DEFAULT_ORDER.forEach(id => { if (!order.includes(id)) order.push(id); });
+  let enabled = { ...DEFAULT_ENABLED, ...(s.shortsSourceEnabled || {}) };
+
+  function persist() {
+    saveSettings({ ...getSettings(), shortsSourceOrder: [...order], shortsSourceEnabled: { ...enabled } });
+    if (showToastFn) showToastFn();
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    order.forEach((id, i) => {
+      const item = document.createElement('div');
+      item.className = 'shorts-source-item' + (enabled[id] ? '' : ' ssi-disabled');
+
+      const numEl  = document.createElement('span');
+      numEl.className = 'ssi-num';
+      numEl.textContent = i + 1;
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'ssi-name';
+      nameEl.textContent = SOURCES[id] || id;
+
+      const upBtn  = document.createElement('button');
+      upBtn.className = 'ssi-btn';
+      upBtn.title = '上へ';
+      upBtn.disabled = (i === 0);
+      upBtn.textContent = '▲';
+      upBtn.addEventListener('click', () => {
+        if (i === 0) return;
+        [order[i - 1], order[i]] = [order[i], order[i - 1]];
+        render(); persist();
+      });
+
+      const downBtn = document.createElement('button');
+      downBtn.className = 'ssi-btn';
+      downBtn.title = '下へ';
+      downBtn.disabled = (i === order.length - 1);
+      downBtn.textContent = '▼';
+      downBtn.addEventListener('click', () => {
+        if (i === order.length - 1) return;
+        [order[i], order[i + 1]] = [order[i + 1], order[i]];
+        render(); persist();
+      });
+
+      const toggleLabel = document.createElement('label');
+      toggleLabel.className = 'settings-toggle';
+      toggleLabel.style.flexShrink = '0';
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = !!enabled[id];
+      chk.addEventListener('change', () => {
+        enabled[id] = chk.checked;
+        item.classList.toggle('ssi-disabled', !chk.checked);
+        persist();
+      });
+      const track = document.createElement('span');
+      track.className = 'settings-toggle-track';
+      const thumb = document.createElement('span');
+      thumb.className = 'settings-toggle-thumb';
+      track.appendChild(thumb);
+      toggleLabel.appendChild(chk);
+      toggleLabel.appendChild(track);
+
+      item.appendChild(numEl);
+      item.appendChild(nameEl);
+      item.appendChild(upBtn);
+      item.appendChild(downBtn);
+      item.appendChild(toggleLabel);
+      listEl.appendChild(item);
+    });
+  }
+
+  render();
+}
+
 })();
