@@ -143,7 +143,7 @@ function formatSubs(n) {
 }
 
 function getThumbnailUrl(videoId) {
-  const ytUrl = `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+  const ytUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   return wsrv(ytUrl, 480);
 }
 
