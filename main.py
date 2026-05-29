@@ -19,6 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
 INVIDIOUS_BASE = "https://raw.githubusercontent.com/kuru-bana/yt-data/main/invidious"
+VIDEO_BACK_URL  = "https://raw.githubusercontent.com/kuru-bana/yt-data/refs/heads/main/api/video-back.json"
 INNERTUBE_BASE = "https://choco-youtube-js.onrender.com"
 CACHE_TTL = 5 * 60
 
@@ -119,6 +120,32 @@ async def get_instances(category: str) -> list:
             return cached["instances"]
         return []
     category_cache[category] = {"instances": instances, "time": now}
+    return instances
+
+
+async def get_video_back_instances() -> list:
+    """video-back.json（シンプルなURLリスト）のインスタンスをキャッシュ付きで取得する。"""
+    _KEY = "__video_back__"
+    now = time.time()
+    cached = category_cache.get(_KEY)
+    if cached and now - cached["time"] < CACHE_TTL:
+        return cached["instances"]
+    try:
+        client = await get_client()
+        resp = await client.get(VIDEO_BACK_URL, timeout=10)
+        resp.raise_for_status()
+        instances = resp.json()
+        if not isinstance(instances, list):
+            instances = []
+    except Exception:
+        if cached:
+            return cached["instances"]
+        raise
+    if not instances:
+        if cached:
+            return cached["instances"]
+        return []
+    category_cache[_KEY] = {"instances": instances, "time": now}
     return instances
 
 
@@ -313,8 +340,8 @@ def _apply_enrichment(data, innertube_items: list, channel_id: str):
     return data
 
 
-async def proxy_parallel(category: str, invidious_path: str, exclude_list: list = None, prefer_valid_videos: bool = False, prefer_valid_stream: bool = False) -> dict:
-    instances = await get_instances(category)
+async def proxy_parallel(category: str, invidious_path: str, exclude_list: list = None, prefer_valid_videos: bool = False, prefer_valid_stream: bool = False, override_instances: list = None) -> dict:
+    instances = override_instances if override_instances is not None else await get_instances(category)
     if exclude_list:
         instances = [b for b in instances if not any(ex in b or b in ex for ex in exclude_list)]
     if not instances:
@@ -498,8 +525,17 @@ async def proxy_stream(path: str, request: Request):
         exclude_list = [s.strip() for s in params.pop("exclude", "").split(",") if s.strip()]
         qs = urlencode(params) if params else ""
         app_path = "/" + path + ("?" + qs if qs else "")
-        category, invidious_path = map_path(app_path)
-        result = await proxy_parallel(category, invidious_path, exclude_list, prefer_valid_stream=True)
+        _, invidious_path = map_path(app_path)
+
+        # video-back.json のインスタンス群を優先取得、失敗時は通常の video カテゴリにフォールバック
+        try:
+            vb_instances = await get_video_back_instances()
+        except Exception:
+            vb_instances = []
+        if not vb_instances:
+            vb_instances = await get_instances("video")
+
+        result = await proxy_parallel("video", invidious_path, exclude_list, prefer_valid_stream=True, override_instances=vb_instances)
         headers = {}
         if result.get("used_instance"):
             headers["X-Instance-Used"] = result["used_instance"]
@@ -855,6 +891,38 @@ async def xeroxyt_shorts_search_stream(q: str = Query(...)):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/thumb")
+async def thumb_proxy(url: str = Query(...), w: int = Query(default=None), fmt: str = Query(default="img")):
+    import base64 as _b64
+    ALLOWED_HOSTS = ("i.ytimg.com", "i9.ytimg.com", "yt3.ggpht.com", "yt3.googleusercontent.com", "lh3.googleusercontent.com")
+    from urllib.parse import urlparse as _up
+    parsed = _up(url)
+    if parsed.hostname not in ALLOWED_HOSTS:
+        return JSONResponse({"error": "disallowed host"}, status_code=403)
+    try:
+        client = await get_client()
+        fetch_url = url
+        if w:
+            sep = "&" if "?" in fetch_url else "?"
+            fetch_url = f"{fetch_url}{sep}w={w}"
+        resp = await client.get(fetch_url, timeout=httpx.Timeout(10.0))
+        if not resp.is_success:
+            return JSONResponse({"error": f"upstream {resp.status_code}"}, status_code=502)
+        data = resp.content
+        ct = resp.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+        if fmt == "b64":
+            encoded = _b64.b64encode(data).decode()
+            data_uri = f"data:{ct};base64,{encoded}"
+            return JSONResponse({"src": data_uri})
+        return StreamingResponse(
+            iter([data]),
+            media_type=ct,
+            headers={"Cache-Control": "public, max-age=86400", "Access-Control-Allow-Origin": "*"},
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
 
 
 @app.get("/download")
