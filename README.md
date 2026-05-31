@@ -56,7 +56,9 @@ Ytdlp-Apiは今度追加していく予定
 サポートしてくださった皆様
 - [@2A_exe様](https://github.com/c00lkimx01-creator)
   - UI切り替え時のCSS開発
-
+- [@siawaseok様](https://github.com/ajgpw)
+  - しあtube開発
+- [@soranous様](https://github.com/xerox-pro)
 ## 実装予定機能
 - rapid apiによるストリーム修得
 - 外部apiによるフォールバック
